@@ -31,7 +31,7 @@ function tls_fallback_scsv($host, $ip, $port) {
         } else {
             $fallback_test = shell_exec("echo | timeout $timeout openssl s_client -servername \"" . escapeshellcmd($host) . "\" -connect " . escapeshellcmd($ip) . ":" . escapeshellcmd($port) . " -fallback_scsv -no_tls1_2 2>&1 >/dev/null");
         }
-        if ( stripos($fallback_test, "SSL alert number 86") !== false ) {
+        if (stripos($fallback_test, "alert inappropriate fallback") !== false) {
             $result['tls_fallback_scsv_support'] = 1;
         }
     } else {
