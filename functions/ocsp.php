@@ -17,6 +17,8 @@
 function ocsp_stapling($host, $ip, $port) {
   //used openssl cli to check if host has enabled oscp stapling.
   global $timeout;
+  global $starttls;
+
   // OpenSSL 1.1.0 has ipv6 support: https://rt.openssl.org/Ticket/Display.html?id=1832
   // if (filter_var(preg_replace('/[^A-Za-z0-9\.\:_-]/', '', $ip), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
   //       // ipv6 openssl tools are broken. (https://rt.openssl.org/Ticket/Display.html?id=1365&user=guest&pass=guest)
@@ -26,9 +28,9 @@ function ocsp_stapling($host, $ip, $port) {
   // escapeshellcmd adds \[\] to ipv6 address.
   // todo: look into escapeshellarg vs. escapeshellcmd
   if (filter_var(preg_replace('/[^A-Za-z0-9\.\:_-]/', '', $ip), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-    $output = shell_exec('echo | timeout ' . $timeout . ' openssl s_client -servername "' . escapeshellcmd($host) . '" -connect \'' . $ip . ':' . escapeshellcmd($port) . '\' -tlsextdebug -status 2>&1 | sed -n "/OCSP response:/,/---/p"'); 
+    $output = shell_exec('echo | timeout ' . $timeout . ' openssl s_client -servername "' . escapeshellcmd($host) . '" -connect \'' . $ip . ':' . escapeshellcmd($port) . '\' -tlsextdebug -status ' . $starttls . ' 2>&1 | sed -n "/OCSP response:/,/---/p"'); 
   } else {
-    $output = shell_exec('echo | timeout ' . $timeout . ' openssl s_client -servername "' . escapeshellcmd($host) . '" -connect "' . escapeshellcmd($ip) . ':' . escapeshellcmd($port) . '" -tlsextdebug -status 2>&1 | sed -n "/OCSP response:/,/---/p"'); 
+    $output = shell_exec('echo | timeout ' . $timeout . ' openssl s_client -servername "' . escapeshellcmd($host) . '" -connect "' . escapeshellcmd($ip) . ':' . escapeshellcmd($port) . '" -tlsextdebug -status ' . $starttls . ' 2>&1 | sed -n "/OCSP response:/,/---/p"'); 
   }
  
   if (strpos($output, "no response sent") !== false) { 

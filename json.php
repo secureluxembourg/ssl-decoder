@@ -20,6 +20,8 @@ if ( isset($_GET['host']) && !empty($_GET['host'])) {
   if ( !is_numeric($port) ) {
     $port = 443;
   }
+  $protocol = mb_strtolower(get($_GET['protocol'], 'tls'));
+  $starttls = determine_starttls($protocol);
   $fastcheck = $_GET['fastcheck'];
   $write_cache = 1;
   $hostfilename = preg_replace("([^\w\s\d\-_~,;:\[\]\(\).])", '', $host);

@@ -47,6 +47,9 @@ foreach (glob("functions/*.php") as $filename) {
     $hostname = parse_hostname($hostname);
     $host = $hostname['hostname'];
     $port = get($_GET['port'], '443');
+    $protocol = mb_strtolower(get($_GET['protocol'], 'tls'));
+    $starttls = determine_starttls($protocol);
+
     if ( !is_numeric($port) ) {
       $port = 443;
     }

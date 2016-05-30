@@ -21,7 +21,7 @@ function check_json($host,$ip,$port,$fastcheck=0) {
   $old_error_reporting = error_reporting();
   error_reporting(0);
   $data = [];
-  $stream = stream_context_create (array("ssl" => 
+  $ctx_options = array("ssl" => 
     array("capture_peer_cert" => true,
     "capture_peer_cert_chain" => true,
     "verify_peer" => false,
@@ -29,13 +29,13 @@ function check_json($host,$ip,$port,$fastcheck=0) {
     "verify_peer_name" => false,
     "allow_self_signed" => true,
     "capture_session_meta" => true,
-    "sni_enabled" => true)));
+    "sni_enabled" => true));
   if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 )) {
     $connect_ip = "[" . $ip . "]";
   } else {
     $connect_ip = $ip;
   }
-  $read_stream = stream_socket_client("ssl://$connect_ip:$port", $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $stream);
+  $read_stream = create_stream($connect_ip, $port, $timeout, $ctx_options);
   if ( $read_stream === false ) {
     $data["error"] = ["Failed to connect: " . htmlspecialchars($errstr)];
     return $data;
@@ -45,6 +45,7 @@ function check_json($host,$ip,$port,$fastcheck=0) {
     $cert_data = openssl_x509_parse($context["options"]["ssl"]["peer_certificate"]);
     $chain_data = $context["options"]["ssl"]["peer_certificate_chain"];
     $chain_length = count($chain_data);
+
     if (isset($chain_data) && $chain_length < $max_chain_length) {
       $chain_length = count($chain_data);
       $chain_arr_keys  = ($chain_data);
@@ -85,4 +86,4 @@ function check_json($host,$ip,$port,$fastcheck=0) {
   return $data;
 }
 
-?>  
+?>

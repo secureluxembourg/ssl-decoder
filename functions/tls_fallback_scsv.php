@@ -16,6 +16,8 @@
 
 function tls_fallback_scsv($host, $ip, $port) {
     global $timeout;
+    global $starttls;
+
     // OpenSSL 1.1.0 has ipv6 support: https://rt.openssl.org/Ticket/Display.html?id=1832
     // if (filter_var(preg_replace('/[^A-Za-z0-9\.\:_-]/', '', $ip), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
     //     // ipv6 openssl tools are broken. (https://rt.openssl.org/Ticket/Display.html?id=1365&user=guest&pass=guest)
@@ -27,9 +29,9 @@ function tls_fallback_scsv($host, $ip, $port) {
         $result['protocol_count'] = count(array_filter($protocols));
         // OpenSSL 1.1.0 has ipv6 support: https://rt.openssl.org/Ticket/Display.html?id=1832
         if (filter_var(preg_replace('/[^A-Za-z0-9\.\:_-]/', '', $ip), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-            $fallback_test = shell_exec("echo | timeout $timeout openssl s_client -servername \"" . escapeshellcmd($host) . "\" -connect '" . $ip . ":" . escapeshellcmd($port) . "' -fallback_scsv -no_tls1_2 2>&1 >/dev/null");
+            $fallback_test = shell_exec("echo | timeout $timeout openssl s_client -servername \"" . escapeshellcmd($host) . "\" -connect '" . $ip . ":" . escapeshellcmd($port) . "' -fallback_scsv -no_tls1_2 ' . $starttls . ' 2>&1 >/dev/null");
         } else {
-            $fallback_test = shell_exec("echo | timeout $timeout openssl s_client -servername \"" . escapeshellcmd($host) . "\" -connect " . escapeshellcmd($ip) . ":" . escapeshellcmd($port) . " -fallback_scsv -no_tls1_2 2>&1 >/dev/null");
+            $fallback_test = shell_exec("echo | timeout $timeout openssl s_client -servername \"" . escapeshellcmd($host) . "\" -connect " . escapeshellcmd($ip) . ":" . escapeshellcmd($port) . ' -fallback_scsv -no_tls1_2 ' . $starttls . ' 2>&1 >/dev/null');
         }
         if (stripos($fallback_test, "alert inappropriate fallback") !== false) {
             $result['tls_fallback_scsv_support'] = 1;

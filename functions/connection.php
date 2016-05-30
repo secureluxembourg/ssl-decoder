@@ -125,14 +125,14 @@ function ssl_conn_ciphersuites($host, $ip, $port, $ciphersuites) {
   $results = array();
   foreach ($ciphersuites as $value) {
     $results[$value] = false;
-    $stream = stream_context_create (array("ssl" => 
+    $ctx_options = array("ssl" => 
     array("verify_peer" => false,
       "verify_peer_name" => false,
       "allow_self_signed" => true,
       "peer_name" => $host,
       'ciphers' => $value,
-      "sni_enabled" => true)));
-    $read_stream = stream_socket_client("ssl://$ip:$port", $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $stream);
+      "sni_enabled" => true));
+    $read_stream = create_stream($ip, $port, $timeout, $ctx_options);
     if ( $read_stream === false ) {
       $results[$value] = false;
     } else {
@@ -180,9 +180,11 @@ function heartbeat_test($host, $port) {
   //this tests for the heartbeat protocol extension
   global $random_blurp;
   global $timeout;
+  global $starttls;
+
   $result = 0;
 
-  $output = shell_exec('echo | timeout ' . $timeout . ' openssl s_client -connect ' . escapeshellcmd($host) . ':' . escapeshellcmd($port) . ' -servername ' . escapeshellcmd($host) . ' -tlsextdebug 2>&1 </dev/null | awk -F\" \'/server extension/ {print $2}\'');
+  $output = shell_exec('echo | timeout ' . $timeout . ' openssl s_client -connect ' . escapeshellcmd($host) . ':' . escapeshellcmd($port) . ' -servername ' . escapeshellcmd($host) . ' -tlsextdebug ' . $starttls . ' 2>&1 </dev/null | awk -F\" \'/server extension/ {print $2}\'');
 
   $output = preg_replace("/[[:blank:]]+/"," ", $output);
   $output = explode("\n", $output);
@@ -195,9 +197,11 @@ function heartbeat_test($host, $port) {
 
 function test_sslv2($ip, $port) {
   global $timeout;
+  global $starttls;
+
   $exitstatus = 0;
   $output = 0;
-  exec('echo | timeout ' . $timeout . ' openssl s_client -connect "' . escapeshellcmd($ip) . ':' . escapeshellcmd($port) . '" -ssl2 2>&1 >/dev/null', $output, $exitstatus); 
+  exec('echo | timeout ' . $timeout . ' openssl s_client -connect "' . escapeshellcmd($ip) . ':' . escapeshellcmd($port) . '" -ssl2 ' . $starttls . ' 2>&1 >/dev/null', $output, $exitstatus); 
   if ($exitstatus == 0) { 
     $result = true;
   } else {
@@ -208,6 +212,7 @@ function test_sslv2($ip, $port) {
 
 function conn_compression($host, $ip, $port) {
   global $timeout;
+  global $starttls;
   // OpenSSL 1.1.0 has ipv6 support: https://rt.openssl.org/Ticket/Display.html?id=1832
   //if (filter_var(preg_replace('/[^A-Za-z0-9\.\:_-]/', '', $ip), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
         // ipv6 openssl tools are broken. (https://rt.openssl.org/Ticket/Display.html?id=1365&user=guest&pass=guest)
@@ -216,9 +221,9 @@ function conn_compression($host, $ip, $port) {
   $exitstatus = 0;
   $output = 0;
   if (filter_var(preg_replace('/[^A-Za-z0-9\.\:_-]/', '', $ip), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-    exec('echo | timeout ' . $timeout . ' openssl s_client -servername "' . escapeshellcmd($host) . '" -connect "' . $ip . ':' . escapeshellcmd($port) . '" -status -tlsextdebug 2>&1 | grep -qe "^Compression: NONE"', $output, $exitstatus); 
+    exec('echo | timeout ' . $timeout . ' openssl s_client -servername "' . escapeshellcmd($host) . '" -connect "' . $ip . ':' . escapeshellcmd($port) . '" -status -tlsextdebug ' . $starttls . ' 2>&1 | grep -qe "^Compression: NONE"', $output, $exitstatus); 
   } else {
-    exec('echo | timeout ' . $timeout . ' openssl s_client -servername "' . escapeshellcmd($host) . '" -connect "' . escapeshellcmd($ip) . ':' . escapeshellcmd($port) . '" -status -tlsextdebug 2>&1 | grep -qe "^Compression: NONE"', $output, $exitstatus); 
+    exec('echo | timeout ' . $timeout . ' openssl s_client -servername "' . escapeshellcmd($host) . '" -connect "' . escapeshellcmd($ip) . ':' . escapeshellcmd($port) . '" -status -tlsextdebug ' . $starttls . ' 2>&1 | grep -qe "^Compression: NONE"', $output, $exitstatus); 
   }
   if ($exitstatus == 0) { 
     $result = false;
@@ -240,65 +245,74 @@ function ssl_conn_protocols($host, $ip, $port) {
 
   $results['sslv2'] = test_sslv2($host, $port);
 
-  $stream_sslv3 = stream_context_create (array("ssl" => 
-    array("verify_peer" => false,
-      "capture_session_meta" => true,
-      "verify_peer_name" => false,
-      "peer_name" => $host,
-      "allow_self_signed" => true,
-      'crypto_method' => STREAM_CRYPTO_METHOD_SSLv3_CLIENT,
-      "sni_enabled" => true)));
-  $read_stream_sslv3 = stream_socket_client("sslv3://$ip:$port", $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $stream_sslv3);
-  if ( $read_stream_sslv3 === false ) {
+  $context = array("ssl" =>
+      array(
+	  "verify_peer" => false,
+	  "capture_session_meta" => true,
+	  "verify_peer_name" => false,
+	  "peer_name" => $host,
+	  "allow_self_signed" => true,
+	  "sni_enabled" => true
+      )
+  );
+
+  $read_stream_sslv3 = create_stream(
+      $ip,
+      $port,
+      $timeout,
+      $context,
+      STREAM_CRYPTO_METHOD_SSLv3_CLIENT,
+      'sslv3'
+  );
+
+  if ($read_stream_sslv3 === false) {
     $results['sslv3'] = false;
   } else {
     $results['sslv3'] = true;
   }
 
-  $stream_tlsv10 = stream_context_create (array("ssl" => 
-    array("verify_peer" => false,
-      "capture_session_meta" => true,
-      "verify_peer_name" => false,
-      "peer_name" => $host,
-      "allow_self_signed" => true,
-      'crypto_method' => STREAM_CRYPTO_METHOD_TLSv_1_0_CLIENT,
-      "sni_enabled" => true)));
-  $read_stream_tlsv10 = stream_socket_client("tlsv1.0://$ip:$port", $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $stream_tlsv10);
-  if ( $read_stream_tlsv10 === false ) {
+  $read_stream_tlsv10 = create_stream(
+      $ip,
+      $port,
+      $timeout,
+      $context,
+      STREAM_CRYPTO_METHOD_TLSv_1_0_CLIENT,
+      'tlsv1.0'
+  );
+  if ($read_stream_tlsv10 === false) {
     $results['tlsv1.0'] = false;
   } else {
     $results['tlsv1.0'] = true;
   }
 
-  $stream_tlsv11 = stream_context_create (array("ssl" => 
-    array("verify_peer" => false,
-      "capture_session_meta" => true,
-      "verify_peer_name" => false,
-      "allow_self_signed" => true,
-      "peer_name" => $host,
-      'crypto_method' => STREAM_CRYPTO_METHOD_TLSv_1_1_CLIENT,
-      "sni_enabled" => true)));
-  $read_stream_tlsv11 = stream_socket_client("tlsv1.1://$ip:$port", $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $stream_tlsv11);
-  if ( $read_stream_tlsv11 === false ) {
+  $read_stream_tlsv11 = create_stream(
+      $ip,
+      $port,
+      $timeout,
+      $context,
+      STREAM_CRYPTO_METHOD_TLSv_1_1_CLIENT,
+      'tlsv1.1'
+  );
+  if ($read_stream_tlsv11 === false) {
     $results['tlsv1.1'] = false;
   } else {
     $results['tlsv1.1'] = true;
   }
 
-  $stream_tlsv12 = stream_context_create (array("ssl" => 
-    array("verify_peer" => false,
-      "capture_session_meta" => true,
-      "verify_peer_name" => false,
-      "allow_self_signed" => true,
-      "peer_name" => $host,
-      'crypto_method' => STREAM_CRYPTO_METHOD_TLSv_1_2_CLIENT,
-      "sni_enabled" => true)));
-  $read_stream_tlsv12 = stream_socket_client("tlsv1.2://$ip:$port", $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $stream_tlsv12);
-  if ( $read_stream_tlsv12 === false ) {
+  $read_stream_tlsv12 = create_stream(
+      $ip,
+      $port,
+      $timeout,
+      $context,
+      STREAM_CRYPTO_METHOD_TLSv_1_2_CLIENT,
+      'tlsv1.1'
+  );
+  if ($read_stream_tlsv12 === false) {
     $results['tlsv1.2'] = false;
   } else {
     $results['tlsv1.2'] = true;
   }
+
   error_reporting($old_error_reporting);
   return $results;
 }
@@ -1208,9 +1222,94 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
   return $result;
 }
 
+function determine_starttls($protocol) {
+    if ($protocol == 'email' or $protocol == 'smtp') {
+	return ' -starttls smtp ';
+    } else {
+	return ' ';
+    }
+}
 
+function create_stream($ip, $port, $timeout, $ctx_options, $crypto_mode=null, $tls_version='ssl') {
+    global $protocol;
 
+    $stream = null;
 
+    if ($crypto_mode) {
+      $ctx_options['ssl']['crypto_method'] = $crypto_mode;
+    }
 
+    $ctx = stream_context_create($ctx_options);
+
+    if ($protocol == 'email' or $protocol == 'smtp') {
+	// connect plain first
+	$stream = @stream_socket_client(
+	    $ip . ":" . $port,
+	    $errno,
+	    $errstr,
+	    $timeout,
+	    STREAM_CLIENT_CONNECT,
+	    $ctx
+	);
+
+	if (!is_resource($stream)) return false;
+
+	// send STARTTLS command
+	get_lines($stream, $timeout);
+	fwrite($stream, "STARTTLS\r\n");
+	$reply = get_lines($stream, $timeout);
+
+	// try to upgrade to an encrypted connection
+	if (!$crypto_mode) {
+	    $crypto_mode = stream_context_get_options($ctx)['ssl']['crypto_method'];
+	    if (!$crypto_mode) $crypto_mode = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+	}
+
+	stream_socket_enable_crypto(
+	    $stream,
+	    true,
+	    $crypto_mode
+	);
+	stream_context_set_option($stream, $ctx_options);
+    } else {
+	$stream = stream_socket_client(
+	    "$tls_version://$ip:$port",
+	    $errno,
+	    $errstr,
+	    $timeout,
+	    STREAM_CLIENT_CONNECT,
+	    $ctx
+	);
+    }
+
+    if (!is_resource($stream)) {
+        return false;
+    } else {
+        return $stream;
+    }
+}
+
+// Cf. https://github.com/PHPMailer/PHPMailer/blob/d3c73b1739aeee621217fdd675708474cf6121e4/class.smtp.php#L1061
+function get_lines($stream, $timeout) {
+    $data = '';
+    stream_set_timeout($stream, $timeout);
+
+    while (is_resource($stream) && !feof($stream)) {
+	$str = fgets($stream, 515);
+	$data .= $str;
+
+	// If 4th character is a space, we are done reading, break the loop, micro-optimisation over strlen
+	if ((isset($str[3]) and $str[3] == ' ')) {
+	    break;
+	}
+
+	// Timed-out? Log and break
+	$info = stream_get_meta_data($stream);
+	if ($info['timed_out']) {
+	    break;
+	}
+    }
+    return $data;
+}
 
 ?>
