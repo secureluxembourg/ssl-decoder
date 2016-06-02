@@ -883,21 +883,21 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
       $certificate_chain = array();
       if ($chain_length <= 10) {
         for ($i = 0; $i < $chain_length; $i++) {
-          if (openssl_x509_parse($chain_data[$i])['issuer']['CN'] && openssl_x509_parse($chain_data[$i])['subject']['CN']) {
-            $result["chain"][$i]["name"] = openssl_x509_parse($chain_data[$i])['subject']['CN'];
-            $result["chain"][$i]["issuer"] = openssl_x509_parse($chain_data[$i])['issuer']['CN'];
+          //if (openssl_x509_parse($chain_data[$i])['issuer']['CN'] && openssl_x509_parse($chain_data[$i])['subject']['CN']) {
+            //$result["chain"][$i]["name"] = openssl_x509_parse($chain_data[$i])['subject']['CN'];
+            //$result["chain"][$i]["issuer"] = openssl_x509_parse($chain_data[$i])['issuer']['CN'];
             $export_pem = "";
             openssl_x509_export($chain_data[$i], $export_pem);
             array_push($certificate_chain, $export_pem);
-            if (openssl_x509_parse($chain_data[$i])['issuer']['CN'] == openssl_x509_parse($chain_data[$i + 1])['subject']['CN']){
+            /*if (openssl_x509_parse($chain_data[$i])['issuer']['CN'] == openssl_x509_parse($chain_data[$i + 1])['subject']['CN']){
               continue;
             } else {
               if ($i != $chain_length - 1) {
                 $result["chain"][$i]["error"] = "Issuer does not match the next certificate CN. Chain order is probably wrong.";
                 $result["warning"][] = "Issuer does not match the next certificate CN. Chain order is probably wrong.";
               }
-            }
-          }
+            }*/
+          //}
         }
       } 
       // chain validation
@@ -909,7 +909,7 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
       if ($verify_exit_code != 1) {
         $result["validation"]["status"] = "failed";
         $result["validation"]["error"] = "Error: Validating certificate chain failed: " . str_replace('/tmp/verify_cert.' . $random_blurp . '.pem: ', '', implode("\n", $verify_output));
-        $result["warning"][] = "Validating certificate chain failed. Probably non-trusted root/self signed certificate, or the chain order is wrong.";
+        //$result["warning"][] = "Validating certificate chain failed. Probably non-trusted root/self signed certificate, or the chain order is wrong.";
       } else {
         $result["validation"]["status"] = "success";
       }
@@ -964,6 +964,7 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
     }
     // hostname ip port
     $result["ip"] = $ip;
+    /*
     if (filter_var(preg_replace('/[^A-Za-z0-9\.\:-]/', '', $ip), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 )) {
       $addr = inet_pton(preg_replace('/[^A-Za-z0-9\.\:-]/', '', $ip));
       $unpack = unpack('H*hex', $addr);
@@ -982,14 +983,14 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
       }
     } else {
       $result["hostname"] = "$host (No PTR available).";
-    }
+    }*/
     $result["port"] = $port;
 
     if($fastcheck == 0) {
       //heartbleed
       $result['heartbleed'] = test_heartbleed($ip, $port);
       if ($result['heartbleed'] == "vulnerable") {
-        $result["warning"][] = 'Vulnerable to the Heartbleed bug. Please update your OpenSSL ASAP!';
+        //$result["warning"][] = 'Vulnerable to the Heartbleed bug. Please update your OpenSSL ASAP!';
       }
 
       // compression
@@ -1003,12 +1004,13 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
         //   $result["warning"][] = 'SSL compression not tested because of <a href="https://rt.openssl.org/Ticket/Display.html?id=1365&user=guest&pass=guest">bugs</a> in the OpenSSL tools and IPv6.';
         // } else {
           $result["compression"] = true;
-          $result["warning"][] = 'SSL compression enabled. Please disable to prevent attacks like CRIME.';
+          //$result["warning"][] = 'SSL compression enabled. Please disable to prevent attacks like CRIME.';
         // }
         
       }
 
       // protocols
+      /*
       $result["protocols"] = array_reverse(ssl_conn_protocols($host, $ip, $port));
       foreach ($result["protocols"] as $key => $value) {
         if ( $value == true ) {
@@ -1023,7 +1025,7 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
             $result["warning"][] = 'TLSv1.2 unsupported. Please enable TLSv1.2.';
           }
         }
-      }
+      }*/
 
       // ciphersuites
         $ciphersuites_to_test = array('ECDHE-RSA-AES256-GCM-SHA384',
@@ -1144,14 +1146,15 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
           'NULL-SHA256',
           'NULL-SHA',
           'NULL-MD5');
+        /*
         $tested_ciphersuites = ssl_conn_ciphersuites($host, $ip, $port, $ciphersuites_to_test);
         $result["supported_ciphersuites"] = array();
         foreach ($tested_ciphersuites as $key => $value) {
           if ($value == true) {
             $result["supported_ciphersuites"][] = $key;
           }
-        }
-        
+        }*/
+
       // tls_fallback_scsv
       $fallback = tls_fallback_scsv($host, $ip, $port);
       if ($fallback['protocol_count'] == 1) {
@@ -1166,7 +1169,7 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
             //$result["warning"][] = 'TLS_FALLBACK_SCSV not tested because of <a href="https://rt.openssl.org/Ticket/Display.html?id=1365&user=guest&pass=guest">bugs</a> in the OpenSSL tools and IPv6.';
           //} else {
             $result["tls_fallback_scsv"] = "unsupported";
-            $result["warning"][] = "TLS_FALLBACK_SCSV unsupported. Please upgrade OpenSSL to enable. This offers downgrade attack protection.";
+            //$result["warning"][] = "TLS_FALLBACK_SCSV unsupported. Please upgrade OpenSSL to enable. This offers downgrade attack protection.";
           //}
         }
       }
@@ -1180,7 +1183,7 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
         }
       } else {
         $result["strict_transport_security"] = 'not set';
-        $result["warning"][] = "HTTP Strict Transport Security not set.";
+        //$result["warning"][] = "HTTP Strict Transport Security not set.";
       }
       //hpkp
       if ( $headers["public-key-pins"] ) {
@@ -1210,14 +1213,14 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
         //   $result["warning"][] = 'OCSP Stapling not tested because of <a href="https://rt.openssl.org/Ticket/Display.html?id=1365&user=guest&pass=guest">bugs</a> in the OpenSSL tools and IPv6.';
         // } else {
           $result["ocsp_stapling"] = "not set";
-          $result["warning"][] = "OCSP Stapling not enabled.";
+          //$result["warning"][] = "OCSP Stapling not enabled.";
         // }
       }
       
       $result["heartbeat"] = heartbeat_test($host, $port);
     }
-    $result["openssl_version"] = shell_exec("openssl version");
-    $result["datetime_rfc2822"] = shell_exec("date --rfc-2822");
+    //$result["openssl_version"] = shell_exec("openssl version");
+    //$result["datetime_rfc2822"] = shell_exec("date --rfc-2822");
   } 
   return $result;
 }

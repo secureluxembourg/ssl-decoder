@@ -62,6 +62,7 @@ function check_json($host,$ip,$port,$fastcheck=0) {
           $data["chain"][$chain_key] = cert_parse_json($curr, $next, null, false, $port, $include_chain);
         }
         // certificate transparency
+        /*
         $data["certificate_transparency"] = [];
         if($fastcheck == 0) {
           foreach ($ct_urls as $ct_url) {
@@ -75,7 +76,7 @@ function check_json($host,$ip,$port,$fastcheck=0) {
              $data["certificate_transparency"][$ct_url] = $ct_result;
             }
           }
-        }
+        }*/
       } 
     } else {
       $data["error"] = ["Chain too long."];

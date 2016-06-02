@@ -915,17 +915,18 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
   //cert 
   if (isset($cert_data) ) {
     // purposes
-    $purposes = array();
+    /*$purposes = array();
     foreach ($cert_data['purposes'] as $key => $purpose) {
       $purposes[$purpose[2]]["ca"] = $purpose[1];
       $purposes[$purpose[2]]["general"] = $purpose[0];
     }
     unset($cert_data['purposes']);
-    $cert_data['purposes'] = $purposes;
+    $cert_data['purposes'] = $purposes;*/
     $result["cert_data"] = $cert_data;
   }
 
 // valid from 
+  /*
   if ( !empty($result['cert_data']['validFrom_time_t']) ) { 
     if ( $today < date(DATE_RFC2822,$result['cert_data']['validFrom_time_t']) ) {
       $result['cert_issued_in_future'] = false;
@@ -954,14 +955,16 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
       $result['cert_expires_in_less_than_thirty_days'] = false;
     }
   }
+   */
 
+  /*
   if ( array_search(explode("Policy: ", explode("\n", $cert_data['extensions']['certificatePolicies'])[0])[1], $ev_oids) ) {
     $result["validation_type"] = "extended";
   } else if ( isset($cert_data['subject']['O'] ) ) {
     $result["validation_type"] = "organization";
   } else if ( isset($cert_data['subject']['CN'] ) ) {
     $result["validation_type"] = "domain";
-  }
+  }*/
   // issuer
   if ($raw_next_cert_data) {
     if (verify_cert_issuer_by_subject_hash($raw_cert_data, $raw_next_cert_data) ) {
@@ -976,9 +979,9 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
     $result["crl"] = crl_verify_json($raw_cert_data);
     if (is_array($result["crl"])) {
       foreach ($result["crl"] as $key => $value) {
-        if ($value["status"] == "revoked") {
+        /*if ($value["status"] == "revoked") {
           $result['warning'][] = "Certificate revoked on CRL: " . $value['crl_uri'] . ". Revocation time: " . $value['revoked_on'] . ".";
-        }
+        }*/
       }
     }
   } else {
@@ -994,11 +997,12 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
           $ocsp_uri = explode("\n", $ocsp_uri)[0];
           $ocsp_uri = explode(" ", $ocsp_uri)[0];
           $result["ocsp"]["$key"] = ocsp_verify_json($raw_cert_data, $raw_next_cert_data, $ocsp_uri);
-          if ($result['ocsp'][$key]["status"] == "revoked") {
+
+          /*if ($result['ocsp'][$key]["status"] == "revoked") {
             $result['warning'][] = "Certificate revoked on OCSP: " . $result['ocsp'][$key]['ocsp_uri'] . ". Revocation time: " . $result['ocsp'][$key]['revocation_time'] . ".";
           } elseif ($result['ocsp'][$key]["status"] == "unknown") {
             $result['warning'][] = "OCSP error on: " . $result['ocsp'][$key]['ocsp_uri'] . ".";
-          }
+          }*/
         } 
       } else {
         $result["ocsp"] = "No issuer cert provided. Unable to send OCSP request.";
@@ -1009,7 +1013,9 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
   } else {
     $result["ocsp"] = "No OCSP URI found in certificate";
   }
+
   // hostname validation
+  /*
   if ($validate_hostname == true) {
     $result["hostname_checked"] = $host;
     if (isset($cert_data['subject']['CN'])) {
@@ -1022,8 +1028,10 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
     }
   } else {
     $result["hostname_in_san_or_cn"] = "n/a; ca signing certificate";
-  }
+  }*/
+
   //serial number
+  /*
   if ( isset($cert_data['serialNumber']) ) { 
     $serial = [];
     $sn = str_split(strtoupper(bcdechex($cert_data['serialNumber'])), 2);
@@ -1035,7 +1043,7 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
       }
     }
     $result["serialNumber"] = implode("", $serial);
-  }
+  }*/
 
   // key details
   $key_details = openssl_pkey_get_details(openssl_pkey_get_public($raw_cert_data));
@@ -1114,6 +1122,7 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
   }
 
   //hashes
+  /*
   $string = $export_pem;
   $pattern = '/-----(.*)-----/';
   $replacement = '';
@@ -1128,8 +1137,10 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
   $result['hash']['sha256'] = cert_hash('sha256', $export_pem_preg);
   $result['hash']['sha384'] = cert_hash('sha384', $export_pem_preg);
   $result['hash']['sha512'] = cert_hash('sha512', $export_pem_preg);
+   */
   
   //TLSA check
+  /*
   if (!empty($cert_data['subject']['CN']) && !empty($host)) {
     if ($validate_hostname == true) {
       $tlsa_record = shell_exec("timeout " . $timeout . " dig +short +dnssec +time=" . $timeout . " TLSA _" . escapeshellcmd($port) . "._tcp." . escapeshellcmd($host) . " 2>&1 | head -n 1");
@@ -1150,7 +1161,8 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
     } else {
       $result['tlsa']['error'] = 'CA certificate, TLSA not applicable.';
     }
-  }
+  }*/
+
   if (isset($key_details['rsa'])) {
     $result["key"]["type"] = "rsa";
     $result["key"]["bits"] = $key_details['bits'];
@@ -1195,17 +1207,21 @@ function cert_parse_json($raw_cert_data, $raw_next_cert_data=null, $host=null, $
     $result["key"]["bits"] = $key_details['bits'];
   }
   // signature algorithm
-  $result["key"]["signature_algorithm"] = cert_signature_algorithm($raw_cert_data);
+  /*$result["key"]["signature_algorithm"] = cert_signature_algorithm($raw_cert_data);
   if ($result["key"]["signature_algorithm"] == "sha1WithRSAEncryption") {
     $result['warning'][] = "SHA-1 certificate. Upgrade (re-issue) to SHA-256 or better.";
-  }
+  }*/
+
   if(isset($export_pem)) {
     $result["key"]["certificate_pem"] = $export_pem;
   }
+
   if(isset($key_details['key'])) {
-    $result["key"]["public_key_pem"] = $key_details['key'];
-    $result["key"]["spki_hash"] = spki_hash($export_pem);
+    //$result["key"]["public_key_pem"] = $key_details['key'];
+    //$result["key"]["spki_hash"] = spki_hash($export_pem);
   }
+
+  unset($result["cert_data"]);
   return $result;
 }
 
