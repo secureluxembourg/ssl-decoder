@@ -1259,6 +1259,8 @@ function create_stream($ip, $port, $timeout, $ctx_options, $crypto_mode=null, $t
 
 	// send STARTTLS command
 	get_lines($stream, $timeout);
+	fwrite($stream, "EHLO localhost\r\n");
+	get_lines($stream, $timeout);
 	fwrite($stream, "STARTTLS\r\n");
 	$reply = get_lines($stream, $timeout);
 
