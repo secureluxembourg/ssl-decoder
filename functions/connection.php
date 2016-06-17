@@ -1226,8 +1226,12 @@ function ssl_conn_metadata_json($host, $ip, $port, $read_stream, $chain_data=nul
 }
 
 function determine_starttls($protocol) {
-    if ($protocol == 'email' or $protocol == 'smtp') {
+    if ($protocol == 'smtp') {
 	return ' -starttls smtp ';
+    } else if ($protocol == 'pop') {
+        return ' -starttls pop3 ';
+    } else if ($protocol == 'imap') {
+        return ' -starttls imap ';
     } else {
 	return ' ';
     }
@@ -1244,7 +1248,7 @@ function create_stream($ip, $port, $timeout, $ctx_options, $crypto_mode=null, $t
 
     $ctx = stream_context_create($ctx_options);
 
-    if ($protocol == 'email' or $protocol == 'smtp') {
+    if ($protocol == 'smtp') {
 	// connect plain first
 	$stream = @stream_socket_client(
 	    $ip . ":" . $port,
@@ -1258,11 +1262,72 @@ function create_stream($ip, $port, $timeout, $ctx_options, $crypto_mode=null, $t
 	if (!is_resource($stream)) return false;
 
 	// send STARTTLS command
-	get_lines($stream, $timeout);
+	get_smtp_lines($stream, $timeout);
 	fwrite($stream, "EHLO localhost\r\n");
-	get_lines($stream, $timeout);
+	get_smtp_lines($stream, $timeout);
 	fwrite($stream, "STARTTLS\r\n");
-	$reply = get_lines($stream, $timeout);
+	$reply = get_smtp_lines($stream, $timeout);
+
+	// try to upgrade to an encrypted connection
+	if (!$crypto_mode) {
+	    $crypto_mode = stream_context_get_options($ctx)['ssl']['crypto_method'];
+	    if (!$crypto_mode) $crypto_mode = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+	}
+
+	stream_socket_enable_crypto(
+	    $stream,
+	    true,
+	    $crypto_mode
+	);
+	stream_context_set_option($stream, $ctx_options);
+    } else if ($protocol == 'pop') {
+	// connect plain first
+	$stream = @stream_socket_client(
+	    $ip . ":" . $port,
+	    $errno,
+	    $errstr,
+	    $timeout,
+	    STREAM_CLIENT_CONNECT,
+	    $ctx
+	);
+
+	if (!is_resource($stream)) return false;
+
+	// send STARTTLS command
+	get_pop_line($stream, $timeout);
+	fwrite($stream, "STLS\r\n");
+	get_pop_line($stream, $timeout);
+
+	// try to upgrade to an encrypted connection
+	if (!$crypto_mode) {
+	    $crypto_mode = stream_context_get_options($ctx)['ssl']['crypto_method'];
+	    if (!$crypto_mode) $crypto_mode = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+	}
+
+	stream_socket_enable_crypto(
+	    $stream,
+	    true,
+	    $crypto_mode
+	);
+	stream_context_set_option($stream, $ctx_options);
+    } else if ($protocol == 'imap') {
+	// connect plain first
+	$stream = @stream_socket_client(
+	    $ip . ":" . $port,
+	    $errno,
+	    $errstr,
+	    $timeout,
+	    STREAM_CLIENT_CONNECT,
+	    $ctx
+	);
+
+	if (!is_resource($stream)) return false;
+
+	// send STARTTLS command
+	get_imap_line('*', $stream, $timeout);
+        $tag = 'A01';
+	fwrite($stream, $tag . " STARTTLS\r\n");
+	get_imap_line($tag, $stream, $timeout);
 
 	// try to upgrade to an encrypted connection
 	if (!$crypto_mode) {
@@ -1295,7 +1360,7 @@ function create_stream($ip, $port, $timeout, $ctx_options, $crypto_mode=null, $t
 }
 
 // Cf. https://github.com/PHPMailer/PHPMailer/blob/d3c73b1739aeee621217fdd675708474cf6121e4/class.smtp.php#L1061
-function get_lines($stream, $timeout) {
+function get_smtp_lines($stream, $timeout) {
     $data = '';
     stream_set_timeout($stream, $timeout);
 
@@ -1305,6 +1370,51 @@ function get_lines($stream, $timeout) {
 
 	// If 4th character is a space, we are done reading, break the loop, micro-optimisation over strlen
 	if ((isset($str[3]) and $str[3] == ' ')) {
+	    break;
+	}
+
+	// Timed-out? Log and break
+	$info = stream_get_meta_data($stream);
+	if ($info['timed_out']) {
+	    break;
+	}
+    }
+    return $data;
+}
+
+function get_pop_line($stream, $timeout) {
+    $data = '';
+    stream_set_timeout($stream, $timeout);
+
+    while (is_resource($stream) && !feof($stream)) {
+	$str = fgets($stream, 515);
+	$data .= $str;
+
+	// If response starts with +OK, we are done reading, break the loop
+	if (substr($str, 0, 3) === '+OK') {
+	    break;
+	}
+
+	// Timed-out? Log and break
+	$info = stream_get_meta_data($stream);
+	if ($info['timed_out']) {
+	    break;
+	}
+    }
+    return $data;
+}
+
+function get_imap_line($tag, $stream, $timeout) {
+    $data = '';
+    stream_set_timeout($stream, $timeout);
+
+    while (is_resource($stream) && !feof($stream)) {
+	$str = fgets($stream, 515);
+	$data .= $str;
+
+	// If response starts with 'tag OK', we are done reading, break the loop
+        $prefix = $tag . ' OK';
+	if (substr($str, 0, strlen($prefix)) === $prefix) {
 	    break;
 	}
 

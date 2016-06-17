@@ -20,7 +20,7 @@ if ( isset($_GET['host']) && !empty($_GET['host'])) {
   if ( !is_numeric($port) ) {
     $port = 443;
   }
-  $protocol = mb_strtolower(get($_GET['protocol'], 'tls'));
+  $protocol = mb_strtolower(get($_GET['protocol'], 'https'));
   $starttls = determine_starttls($protocol);
   $fastcheck = $_GET['fastcheck'];
   $write_cache = 1;
